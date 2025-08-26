@@ -47,6 +47,7 @@ test.describe('installed plausible web variant', () => {
 
     expect(result).toEqual({
       data: {
+        cookiesHandled: null,
         attempts: 1,
         completed: true,
         plausibleIsInitialized: true,
@@ -108,6 +109,7 @@ test.describe('installed plausible web variant', () => {
 
     expect(result).toEqual({
       data: {
+        cookiesHandled: null,
         attempts: 1,
         completed: true,
         plausibleIsInitialized: true,
@@ -165,6 +167,7 @@ test.describe('installed plausible web variant', () => {
 
     expect(result).toEqual({
       data: {
+        cookiesHandled: null,
         attempts: 1,
         completed: true,
         plausibleIsInitialized: true,
@@ -211,6 +214,7 @@ test.describe('installed plausible web variant', () => {
 
     expect(result).toEqual({
       data: {
+        cookiesHandled: null,
         attempts: 1,
         completed: true,
         plausibleIsInitialized: true,
@@ -270,6 +274,7 @@ test.describe('installed plausible web variant', () => {
 
     expect(result).toEqual({
       data: {
+        cookiesHandled: null,
         attempts: 2,
         completed: true,
         plausibleIsInitialized: true,
@@ -394,6 +399,7 @@ test.describe('installed plausible web variant', () => {
 
     expect(result).toEqual({
       data: {
+        cookiesHandled: null,
         attempts: 1,
         completed: true,
         disallowedByCsp: true,
@@ -455,6 +461,7 @@ test.describe('installed plausible web variant', () => {
 
     expect(result).toEqual({
       data: {
+        cookiesHandled: null,
         attempts: 1,
         completed: true,
         disallowedByCsp: false, // scripts from our domain are allowed, but the inline sourceless snippet can't run because 'unsafe-inline' is not present in the CSP
@@ -516,6 +523,7 @@ test.describe('installed plausible web variant', () => {
 
     expect(result).toEqual({
       data: {
+        cookiesHandled: null,
         attempts: 1,
         completed: true,
         disallowedByCsp: false,
@@ -574,6 +582,7 @@ test.describe('installed plausible esm variant', () => {
 
     expect(result).toEqual({
       data: {
+        cookiesHandled: null,
         attempts: 1,
         completed: true,
         plausibleIsInitialized: true,
@@ -633,6 +642,7 @@ test.describe('installed plausible esm variant', () => {
 
     expect(result).toEqual({
       data: {
+        cookiesHandled: null,
         attempts: 1,
         completed: true,
         plausibleIsInitialized: true,
@@ -692,6 +702,7 @@ test.describe('installed plausible esm variant', () => {
 
     expect(result).toEqual({
       data: {
+        cookiesHandled: null,
         attempts: 1,
         completed: true,
         plausibleIsInitialized: true,
@@ -740,6 +751,7 @@ test.describe('installed plausible esm variant', () => {
 
     expect(result).toEqual({
       data: {
+        cookiesHandled: null,
         attempts: 1,
         completed: true,
         plausibleIsInitialized: true,
@@ -764,4 +776,38 @@ test.describe('installed plausible esm variant', () => {
       }
     })
   })
+})
+
+test.describe('cookie banners', () => {
+  for (const { url, expectedCookiesHandled } of [
+    // { url: 'https://visitestonia.com/en', expectedCookiesHandled: .. }, // this site uses cookiebot but consent-o-matic is not able to accept the cookies
+    {
+      url: 'https://www.vepsalainen.com/en/ee/',
+      expectedCookiesHandled: {
+        handled: true,
+        cmp: 'cookiebot',
+        clicks: expect.any(Number)
+      }
+    }
+  ]) {
+    test(`accepts cookies on ${url} (${expectedCookiesHandled.cmp})`, async ({
+      page
+    }) => {
+      const cookieBannerTitle = 'We use cookies to better your user experience'
+      const response = await page.goto(url)
+      await expect(page.getByText(cookieBannerTitle)).toBeVisible()
+      const responseHeaders = response?.headers() ?? {}
+
+      const result = await executeVerifyV2(page, {
+        ...DEFAULT_VERIFICATION_OPTIONS,
+        responseHeaders
+      })
+      await expect(page.getByText(cookieBannerTitle)).not.toBeVisible()
+      expect(result.data).toEqual(
+        expect.objectContaining({
+          cookiesHandled: { ...expectedCookiesHandled, url }
+        })
+      )
+    })
+  }
 })

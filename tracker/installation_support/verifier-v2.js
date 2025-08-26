@@ -2,6 +2,8 @@
 /** @typedef {import('../test/support/types').VerifyV2Result} VerifyV2Result */
 import { checkCookieBanner } from './check-cookie-banner'
 import { checkDisallowedByCSP } from './check-disallowed-by-csp'
+import ConsentEngine from '../node_modules/consent-o-matic/Extension/ConsentEngine'
+import { cookiebot } from './consent-o-matic-rules'
 
 /**
  * Function that verifies if Plausible is installed correctly.
@@ -19,9 +21,63 @@ async function verifyPlausibleInstallation({
     if (debug) console.log('[VERIFICATION v2]', message)
   }
 
+  let cookiesHandled = null
+
   const disallowedByCsp = checkDisallowedByCSP(responseHeaders, cspHostToCheck)
 
   const { stopRecording, getInterceptedFetch } = startRecordingEventFetchCalls()
+
+  const fetchedRules = [cookiebot]
+  const url = window.location.href
+  const config = Object.assign({}, ...fetchedRules)
+  startConsentEngine({
+    consentTypes: {
+      A: true,
+      B: true,
+      D: true,
+      E: true,
+      F: true,
+      X: true
+    },
+    config,
+    url,
+    debugValues: {
+      clickDelay: false,
+      skipSubmit: false,
+      paintMatchers: false,
+      debugClicks: false,
+      alwaysForceRulesUpdate: false,
+      skipHideMethod: false,
+      debugLog: true,
+      debugRules: true,
+      debugTranslations: false,
+      skipSubmitConfirmation: false,
+      dontHideProgressDialog: false,
+      skipOpenMethod: false,
+      autoOpenOptionsTab: false
+    },
+    generalSettings: {
+      hideInsteadOfPIP: false
+    },
+    handledCallback: (evt) => {
+      let result = {
+        handled: evt.handled
+      }
+
+      if (evt.handled) {
+        result.cmp = evt.cmpName
+        result.clicks = evt.clicks
+        result.url = url
+
+        cookiesHandled = result
+      } else if (evt.error) {
+        cookiesHandled = 'CMPError'
+      } else {
+        cookiesHandled = 'NothingFound'
+      }
+      log(cookiesHandled)
+    }
+  })
 
   const {
     plausibleIsInitialized,
@@ -61,7 +117,8 @@ async function verifyPlausibleInstallation({
       responseStatus: interceptedTestEvent?.response?.status,
       error: interceptedTestEvent?.error
     },
-    cookieBannerLikely: checkCookieBanner()
+    cookieBannerLikely: checkCookieBanner(),
+    cookiesHandled
   }
 
   log({
@@ -211,6 +268,23 @@ async function testPlausibleFunction({ timeoutMs }) {
       }
     })
   })
+}
+
+function startConsentEngine({
+  url,
+  debugValues,
+  generalSettings,
+  config,
+  consentTypes,
+  handledCallback
+}) {
+  ConsentEngine.debugValues = debugValues
+  ConsentEngine.generalSettings = generalSettings
+  ConsentEngine.topFrameUrl = url
+
+  let engine = new ConsentEngine(config, consentTypes, handledCallback)
+
+  ConsentEngine.singleton = engine
 }
 
 function delay(ms) {

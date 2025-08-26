@@ -110,6 +110,7 @@ export function compileWebSnippet() {
 async function bundleCode(entryPoint = 'src/plausible.js') {
   const bundle = await rollup({
     input: entryPoint,
+    external: []
   })
 
   const { output } = await bundle.generate({ format: 'esm' })
